@@ -1,0 +1,602 @@
+{
+  "name": "Frepi v2 - BOT Structure + MVP1 Functions",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "responseMode": "responseNodes"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2432,
+        48
+      ],
+      "id": "5e10e362-7a3f-49f6-a1f9-0af8a0baa7ad",
+      "name": "When chat message received",
+      "webhookId": "frepi-v2-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and prepare WhatsApp data\nconst input = $input.first().json;\n\n// Extract message data\nconst chatInput = input.chatInput || '';\nconst sessionId = input.sessionId || 'default-session';\n\n// Prepare data for classification\nreturn {\n  json: {\n    message: chatInput,\n    session_id: sessionId,\n    timestamp: new Date().toISOString(),\n    raw_input: input\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2208,
+        48
+      ],
+      "id": "cbd7c9c7-21ad-4b0b-aa1d-ddcdedaff6e0",
+      "name": "Extract Message Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition-001",
+              "leftValue": "={{ $json.message.toLowerCase() }}",
+              "rightValue": "proveedor|vender|supplier|lista de precios|distribuidor",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1776,
+        48
+      ],
+      "id": "49b7a3f2-f5f1-4dcd-bd69-c4eff5372f1d",
+      "name": "Route: Customer or Supplier?"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "# 👤 CUSTOMER JOURNEY AGENT\n\n## CONTEXTO\nEres el agente especializado en gestionar restaurantes. Manejas todo el ciclo de compra.\n\n## MISIÓN\n1. Onboarding de nuevos restaurantes\n2. Configuración de preferencias\n3. Búsqueda y compra de productos\n4. Gestión de pedidos\n\n## TOOLS DISPONIBLES\n\n### 📝 onboarding_restaurant\nInicia registro de nuevo restaurante.\nCaptura: nombre restaurante, contacto, ciudad, tipo negocio.\nUSA cuando detectes que es usuario nuevo.\n\n### ⚙️ setup_buying_preferences\nConfigura preferencias de compra.\nCaptura: marcas preferidas, formatos, frecuencias, restricciones.\nUSA cuando usuario quiera configurar preferencias.\n\n### 🔎 search_products_vector\nBusca productos en catálogo maestro usando vector search.\nRetorna productos con precios y disponibilidad.\nUSA cuando usuario mencione productos para comprar.\n\n### 🛒 build_shopping_cart\nArma carrito con productos seleccionados.\nCalcula cantidades y totales.\nUSA después de search cuando usuario seleccione productos.\n\n### ✅ execute_checkout\nFinaliza y confirma el pedido.\nCrea orden en sistema.\nUSA cuando usuario confirme \"comprar\" o \"confirmar pedido\".\n\n### 📱 show_customer_menu\nMuestra menú de opciones para restaurantes.\nUSA cuando usuario pida \"menu\", \"opciones\" o \"ayuda\".\n\n## FLUJO TÍPICO\n\n**Nuevo Usuario:**\n1. Detectar que es nuevo\n2. onboarding_restaurant\n3. setup_buying_preferences (opcional)\n4. show_customer_menu\n\n**Usuario Comprando:**\n1. search_products_vector\n2. Usuario selecciona productos\n3. build_shopping_cart\n4. Usuario confirma\n5. execute_checkout\n\n**Usuario Configurando:**\n1. setup_buying_preferences\n2. Capturar preferencias paso a paso\n3. Confirmar guardado\n\n## REGLAS\n- Conversación natural, no robotizada\n- UNA pregunta a la vez en onboarding\n- Confirmar antes de checkout\n- Si usuario cambia de tema, adaptar\n- Usar emojis relevantes: 🛒 🔎 ✅ 📦\n\n## TONO\nAmigable, eficiente, como asistente personal de compras."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -1248,
+        -256
+      ],
+      "id": "69fd7ed3-a25a-4296-9deb-1c38124e0876",
+      "name": "Customer Journey Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.3,
+          "timeout": 30000,
+          "maxRetries": 3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1552,
+        -32
+      ],
+      "id": "fac8a138-1ca0-4e78-996c-6b0138450f19",
+      "name": "OpenAI Chat Customer",
+      "credentials": {
+        "openAiApi": {
+          "id": "MdAepMtuPO5nFVI0",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Inicia el onboarding de un nuevo restaurante. Captura nombre del restaurante, contacto, ciudad y tipo de negocio. Retorna JSON con status y siguiente paso.",
+        "jsCode": "// Onboarding Restaurant Tool\nconst input = $input.first().json;\nconst message = input.query || input.message || '';\n\n// En producción: verificar si usuario existe en Supabase\n// const exists = await checkUserInSupabase(phone_number);\n\nconst response = {\n  status: 'collecting_data',\n  step: 1,\n  total_steps: 4,\n  fields_collected: [],\n  fields_pending: ['restaurant_name', 'contact_name', 'city', 'business_type'],\n  message: '📝 ¡Hola! Bienvenido a Frepi.\\n\\nPara comenzar, necesito algunos datos básicos.\\n\\n¿Cuál es el *nombre de tu restaurante*?',\n  next_action: 'await_restaurant_name'\n};\n\nreturn JSON.stringify(response);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -1424,
+        -32
+      ],
+      "id": "2e3f5eb3-7607-424f-8201-eb0d2d4bd29b",
+      "name": "onboarding_restaurant"
+    },
+    {
+      "parameters": {
+        "description": "Configura las preferencias de compra del restaurante. Captura marcas preferidas, formatos, frecuencia de pedidos y restricciones especiales.",
+        "jsCode": "// Setup Buying Preferences Tool\nconst input = $input.first().json;\n\nconst response = {\n  status: 'configuring',\n  preference_fields: [\n    {field: 'preferred_brands', label: 'Marcas preferidas', collected: false},\n    {field: 'preferred_formats', label: 'Formatos (kg, caixa, unidade)', collected: false},\n    {field: 'order_frequency', label: 'Frecuencia de pedidos', collected: false},\n    {field: 'delivery_schedule', label: 'Horario de entrega preferido', collected: false},\n    {field: 'special_restrictions', label: 'Restricciones especiales', collected: false}\n  ],\n  current_step: 1,\n  total_steps: 5,\n  message: '⚙️ *Configuración de Preferencias*\\n\\nVamos a configurar tus preferencias para ofrecerte mejores recomendaciones.\\n\\n¿Tienes *marcas preferidas* que siempre usas?\\n(Ej: Sadia, Nestlé, Aurora)\\n\\nSi no tienes preferencia, escribe \"ninguna\".',\n  next_action: 'await_brands'\n};\n\nreturn JSON.stringify(response);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -1296,
+        -32
+      ],
+      "id": "77faa733-781b-477a-884a-422564290bbd",
+      "name": "setup_buying_preferences"
+    },
+    {
+      "parameters": {
+        "description": "Busca productos en el catálogo maestro usando vector search semántico. Retorna lista de productos con precios, proveedores y disponibilidad.",
+        "jsCode": "// Product Vector Search Tool\nconst input = $input.first().json;\nconst searchQuery = input.query || input.product || input.message || '';\n\n// En producción: Vector search real en Supabase\n// const embedding = await getEmbedding(searchQuery);\n// const results = await supabase.rpc('match_products', {query_embedding: embedding});\n\n// Mock results\nconst products = [\n  {\n    id: 'prod-tomate-001',\n    name: 'Tomate Longa Vida',\n    brand: 'FreshCo',\n    format: '500g',\n    unit: 'caixa com 20 unidades',\n    price_per_unit: 4.50,\n    price_per_box: 90.00,\n    supplier: 'FreshCo Distribuidora',\n    availability: 'in_stock',\n    match_score: 0.92\n  },\n  {\n    id: 'prod-tomate-002',\n    name: 'Tomate Italiano Premium',\n    brand: 'VeggieMax',\n    format: '1kg',\n    unit: 'caixa com 10kg',\n    price_per_unit: 8.90,\n    price_per_box: 89.00,\n    supplier: 'VeggieMax Orgânicos',\n    availability: 'in_stock',\n    match_score: 0.88\n  },\n  {\n    id: 'prod-tomate-003',\n    name: 'Tomate Cereja',\n    brand: 'DeliFresh',\n    format: '250g',\n    unit: 'bandeja',\n    price_per_unit: 6.50,\n    price_per_box: 65.00,\n    supplier: 'DeliFresh Foods',\n    availability: 'low_stock',\n    match_score: 0.75\n  }\n];\n\nconst message = `🔎 *Resultados para \"${searchQuery}\"*\\n\\nEncontré ${products.length} opciones:\\n\\n` +\n  products.map((p, i) => \n    `${i+1}. *${p.name}* ${p.format}\\n` +\n    `   Marca: ${p.brand}\\n` +\n    `   Unidad: R$ ${p.price_per_unit.toFixed(2)}\\n` +\n    `   Caixa: R$ ${p.price_per_box.toFixed(2)} (${p.unit})\\n` +\n    `   Fornecedor: ${p.supplier}\\n` +\n    `   ${p.availability === 'in_stock' ? '✅ Disponible' : '⚠️ Stock bajo'}`\n  ).join('\\n\\n') +\n  `\\n\\n💬 ¿Cuál te interesa y cuántas cajas necesitas?`;\n\nconst response = {\n  query: searchQuery,\n  found: true,\n  results_count: products.length,\n  products: products,\n  message: message\n};\n\nreturn JSON.stringify(response);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -1168,
+        -32
+      ],
+      "id": "aabcde00-b57b-4a45-8019-1da30fcc3b7f",
+      "name": "search_products_vector"
+    },
+    {
+      "parameters": {
+        "description": "Construye el carrito de compras agregando productos seleccionados por el usuario. Calcula cantidades, subtotales y total.",
+        "jsCode": "// Build Shopping Cart Tool\nconst input = $input.first().json;\n\n// Mock: En producción, parsear selección del usuario\n// y agregar al carrito en memoria/sesión\n\nconst cart = {\n  cart_id: 'cart-' + Date.now(),\n  session_id: input.session_id || 'default',\n  items: [\n    {\n      product_id: 'prod-tomate-001',\n      name: 'Tomate Longa Vida 500g',\n      quantity: 3,\n      unit: 'cajas',\n      unit_price: 90.00,\n      subtotal: 270.00\n    }\n  ],\n  subtotal: 270.00,\n  tax: 0,\n  delivery_fee: 0,\n  total: 270.00,\n  status: 'pending_confirmation'\n};\n\nconst message = `🛒 *Tu Carrito*\\n\\n` +\n  cart.items.map(item => \n    `• *${item.name}*\\n` +\n    `  ${item.quantity} ${item.unit} x R$ ${item.unit_price.toFixed(2)} = R$ ${item.subtotal.toFixed(2)}`\n  ).join('\\n\\n') +\n  `\\n\\n───────────────────\\n` +\n  `Subtotal: R$ ${cart.subtotal.toFixed(2)}\\n` +\n  `Entrega: R$ ${cart.delivery_fee.toFixed(2)}\\n` +\n  `───────────────────\\n` +\n  `*TOTAL: R$ ${cart.total.toFixed(2)}*\\n\\n` +\n  `¿Quieres:\\n` +\n  `1️⃣ Agregar más productos\\n` +\n  `2️⃣ Confirmar pedido\\n` +\n  `3️⃣ Cancelar`;\n\nconst response = {\n  ...cart,\n  message: message\n};\n\nreturn JSON.stringify(response);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -1040,
+        -32
+      ],
+      "id": "edfd141f-5a20-451a-8103-7fd1a6ad4aa8",
+      "name": "build_shopping_cart"
+    },
+    {
+      "parameters": {
+        "description": "Finaliza el pedido creando la orden en el sistema. Genera número de orden y confirma al usuario. Solo usar cuando usuario confirme explícitamente.",
+        "jsCode": "// Execute Checkout Tool\nconst input = $input.first().json;\n\n// En producción: Crear orden en Supabase\n// await supabase.from('purchase_orders').insert({...})\n\nconst orderNumber = 'ORD-' + Date.now();\nconst today = new Date();\nconst deliveryDate = new Date(today);\ndeliveryDate.setDate(deliveryDate.getDate() + 2);\n\nconst order = {\n  order_number: orderNumber,\n  status: 'confirmed',\n  total: 270.00,\n  created_at: today.toISOString(),\n  estimated_delivery: deliveryDate.toISOString().split('T')[0],\n  items_count: 3,\n  payment_status: 'pending'\n};\n\nconst message = `✅ *PEDIDO CONFIRMADO*\\n\\n` +\n  `📋 Número de Pedido: *${order.order_number}*\\n` +\n  `💰 Total: R$ ${order.total.toFixed(2)}\\n` +\n  `🚚 Entrega estimada: ${order.estimated_delivery}\\n` +\n  `📦 ${order.items_count} productos\\n\\n` +\n  `Tu pedido está en proceso!\\n` +\n  `Te avisaremos cuando esté listo para entrega.\\n\\n` +\n  `────────────────\\n` +\n  `💬 ¿Necesitas algo más?\\n` +\n  `Escribe \"menu\" para ver opciones.`;\n\nconst response = {\n  success: true,\n  order: order,\n  message: message\n};\n\nreturn JSON.stringify(response);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -912,
+        -32
+      ],
+      "id": "910d7192-7afe-4af4-b6ee-ec658bd6ae69",
+      "name": "execute_checkout"
+    },
+    {
+      "parameters": {
+        "description": "Muestra el menú principal de opciones para restaurantes.",
+        "jsCode": "// Show Customer Menu Tool\nconst menu = `🍽️ *MENU PRINCIPAL - RESTAURANTE*\\n\\n` +\n  `¿Qué quieres hacer hoy?\\n\\n` +\n  `1️⃣ 🛒 *Hacer una compra*\\n` +\n  `   Buscar productos y crear pedido\\n\\n` +\n  `2️⃣ ⚙️ *Configurar preferencias*\\n` +\n  `   Definir marcas, formatos, restricciones\\n\\n` +\n  `3️⃣ 📦 *Ver mis pedidos*\\n` +\n  `   Consultar estado e historial\\n\\n` +\n  `4️⃣ 🏪 *Gestionar proveedores*\\n` +\n  `   Agregar o actualizar suppliers\\n\\n` +\n  `Escribe el número o describe lo que necesitas.`;\n\nreturn JSON.stringify({\n  menu: menu,\n  options: ['comprar', 'configurar', 'pedidos', 'proveedores']\n});"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -784,
+        -32
+      ],
+      "id": "775cd445-d4b4-46b7-9d76-cc0728979919",
+      "name": "show_customer_menu"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "# 🏪 SUPPLIER JOURNEY AGENT\n\n## CONTEXTO\nEres el agente especializado en gestionar proveedores. Manejas registro, listas de precios y publicación.\n\n## MISIÓN\n1. Onboarding de nuevos proveedores\n2. Procesamiento de listas de precios\n3. Normalización y validación de productos\n4. Publicación al catálogo maestro\n\n## TOOLS DISPONIBLES\n\n### 📋 onboarding_supplier\nInicia registro de nuevo proveedor.\nCaptura: razón social, contacto, región de cobertura, categorías.\nUSA cuando detectes que es proveedor nuevo.\n\n### 💰 upload_supplier_prices\nProcesa lista de precios del proveedor.\nAcepta archivos CSV/Excel o texto estructurado.\nValida formato y completitud.\nUSA cuando proveedor envíe precios.\n\n### 🔧 normalize_product_list\nNormaliza la lista de productos:\n- Mapea SKUs al catálogo maestro\n- Estandariza unidades de medida\n- Elimina duplicados\n- Valida precios anómalos\nUSA después de upload_supplier_prices.\n\n### 📤 publish_to_catalog\nPublica lista normalizada al catálogo activo.\nCrea versión, registra changelog.\nUSA cuando proveedor confirme publicación.\n\n### 📱 show_supplier_menu\nMuestra menú de opciones para proveedores.\nUSA cuando proveedor pida \"menu\" u \"opciones\".\n\n## FLUJO TÍPICO\n\n**Nuevo Proveedor:**\n1. onboarding_supplier\n2. Capturar datos empresa\n3. show_supplier_menu\n\n**Subir Precios:**\n1. upload_supplier_prices\n2. Validar formato\n3. normalize_product_list\n4. Revisar resultados\n5. publish_to_catalog\n\n## REGLAS\n- Validar SIEMPRE antes de publicar\n- Detectar precios anómalos (>50% cambio)\n- Confirmar publicación explícitamente\n- Mantener historial de versiones\n- Tono profesional pero amigable\n\n## TONO\nProfesional, eficiente, orientado a resultados comerciales."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -1248,
+        256
+      ],
+      "id": "35ddcb9a-32ef-465a-a868-24584a2d4738",
+      "name": "Supplier Journey Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.2,
+          "timeout": 30000,
+          "maxRetries": 3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -1552,
+        480
+      ],
+      "id": "9f797785-1d4a-4ff7-a690-364eb8aeeaba",
+      "name": "OpenAI Chat Supplier",
+      "credentials": {
+        "openAiApi": {
+          "id": "MdAepMtuPO5nFVI0",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Extract Message Data').item.json.session_id }}",
+        "contextWindowLength": 30
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -1424,
+        480
+      ],
+      "id": "04dfda79-e855-4b57-8c69-d6246d4d967e",
+      "name": "Memory Supplier"
+    },
+    {
+      "parameters": {
+        "description": "Inicia el onboarding de un nuevo proveedor. Captura razón social, contacto comercial, región de cobertura y categorías de productos.",
+        "jsCode": "// Onboarding Supplier Tool\nconst response = {\n  status: 'collecting_data',\n  step: 1,\n  total_steps: 4,\n  fields_collected: [],\n  fields_pending: ['company_name', 'contact_name', 'coverage_area', 'product_categories'],\n  message: '📋 *Registro de Proveedor*\\n\\n' +\n    'Bienvenido! Para registrarte como proveedor en Frepi, necesito algunos datos.\\n\\n' +\n    '¿Cuál es la *razón social* de tu empresa?',\n  next_action: 'await_company_name'\n};\n\nreturn JSON.stringify(response);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -1296,
+        480
+      ],
+      "id": "d2e8f212-7830-4b27-8053-c7e6f3da3727",
+      "name": "onboarding_supplier"
+    },
+    {
+      "parameters": {
+        "description": "Procesa y valida lista de precios del proveedor. Acepta CSV, Excel o texto estructurado con formato: Producto | Precio | Unidad.",
+        "jsCode": "// Upload Supplier Prices Tool\nconst input = $input.first().json;\nconst message = input.query || input.message || '';\n\n// En producción: parsear archivo o texto\n// Detectar formato, validar campos obligatorios\n\nconst response = {\n  status: 'awaiting_file',\n  accepted_formats: ['csv', 'xlsx', 'text'],\n  required_fields: ['producto', 'precio', 'unidad'],\n  message: '💰 *Subir Lista de Precios*\\n\\n' +\n    'Puedes enviarme tu lista en estos formatos:\\n\\n' +\n    '📄 *Archivo CSV/Excel* con columnas:\\n' +\n    '   • Producto\\n' +\n    '   • Precio\\n' +\n    '   • Unidad (kg, caixa, etc)\\n' +\n    '   • SKU (opcional)\\n\\n' +\n    '📝 *Texto estructurado*:\\n' +\n    '   Ejemplo:\\n' +\n    '   Tomate 500g | 4.50 | caixa\\n' +\n    '   Cebolla 1kg | 3.20 | kg\\n\\n' +\n    'Envía tu lista y la procesaré.',\n  next_action: 'await_price_list'\n};\n\nreturn JSON.stringify(response);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -1168,
+        480
+      ],
+      "id": "dd6e08b9-3023-4335-a238-fb8d10a4ce78",
+      "name": "upload_supplier_prices"
+    },
+    {
+      "parameters": {
+        "description": "Normaliza la lista de productos del proveedor mapeando al catálogo maestro, estandarizando unidades y validando precios.",
+        "jsCode": "// Normalize Product List Tool\nconst input = $input.first().json;\n\n// En producción: \n// - Vector search para mapear productos\n// - Validar unidades contra tabla estándar\n// - Detectar outliers de precio\n\nconst normalizationResults = {\n  status: 'normalized',\n  products_received: 25,\n  products_mapped: 22,\n  products_new: 3,\n  products_rejected: 0,\n  warnings: [\n    {\n      product: 'Tomate Cherry 250g',\n      issue: 'Precio 30% mayor que promedio mercado',\n      action: 'review_recommended'\n    }\n  ],\n  summary: {\n    total_value: 12500.00,\n    avg_price_change: '+5%',\n    categories_affected: ['Vegetales', 'Frutas', 'Lácteos']\n  },\n  message: '🔧 *Normalización Completada*\\n\\n' +\n    '✅ 22 productos mapeados al catálogo\\n' +\n    '🆕 3 productos nuevos detectados\\n' +\n    '⚠️ 1 advertencia de precio\\n\\n' +\n    '*Resumen:*\\n' +\n    '• Valor total: R$ 12,500.00\\n' +\n    '• Cambio promedio: +5%\\n' +\n    '• Categorías: 3\\n\\n' +\n    '¿Quieres revisar los detalles o publicar directamente?',\n  next_action: 'await_confirmation'\n};\n\nreturn JSON.stringify(normalizationResults);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -1040,
+        480
+      ],
+      "id": "ca3e370a-b9b8-421a-819b-813821288fba",
+      "name": "normalize_product_list"
+    },
+    {
+      "parameters": {
+        "description": "Publica la lista normalizada al catálogo activo creando nueva versión y notificando a restaurantes afectados.",
+        "jsCode": "// Publish to Catalog Tool\nconst input = $input.first().json;\n\n// En producción:\n// - Crear versión en tabla catalog_versions\n// - Actualizar precios en master_list\n// - Notificar a restaurantes que usan estos productos\n\nconst version = 'v' + new Date().toISOString().split('T')[0].replace(/-/g, '');\nconst timestamp = new Date().toISOString();\n\nconst publishResult = {\n  success: true,\n  version: version,\n  published_at: timestamp,\n  products_updated: 22,\n  products_added: 3,\n  restaurants_notified: 15,\n  changelog: [\n    {action: 'price_update', count: 18},\n    {action: 'new_product', count: 3},\n    {action: 'availability_change', count: 4}\n  ],\n  message: '📤 *LISTA PUBLICADA EXITOSAMENTE*\\n\\n' +\n    `✅ Versión: *${version}*\\n` +\n    `📅 Fecha: ${new Date().toLocaleDateString('es-BR')}\\n\\n` +\n    '*Cambios aplicados:*\\n' +\n    '• 22 productos actualizados\\n' +\n    '• 3 productos nuevos agregados\\n' +\n    '• 15 restaurantes notificados\\n\\n' +\n    '🎉 Tus productos ya están disponibles!\\n' +\n    'Los restaurantes pueden verlos y hacer pedidos.\\n\\n' +\n    '────────────────\\n' +\n    'Escribe \"menu\" para más opciones.',\n  next_action: 'show_menu'\n};\n\nreturn JSON.stringify(publishResult);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -912,
+        480
+      ],
+      "id": "d7c321ed-37d8-400e-8e65-0b570f49d652",
+      "name": "publish_to_catalog"
+    },
+    {
+      "parameters": {
+        "description": "Muestra el menú principal de opciones para proveedores.",
+        "jsCode": "// Show Supplier Menu Tool\nconst menu = `🏪 *MENU PRINCIPAL - PROVEEDOR*\\n\\n` +\n  `¿Qué operación quieres realizar?\\n\\n` +\n  `1️⃣ 💰 *Subir lista de precios*\\n` +\n  `   Actualizar productos y precios\\n\\n` +\n  `2️⃣ 📋 *Ver catálogo activo*\\n` +\n  `   Consultar productos publicados\\n\\n` +\n  `3️⃣ 📊 *Historial de ventas*\\n` +\n  `   Ver pedidos recibidos\\n\\n` +\n  `4️⃣ ⚙️ *Configurar perfil*\\n` +\n  `   Actualizar datos de la empresa\\n\\n` +\n  `Escribe el número o describe lo que necesitas.`;\n\nreturn JSON.stringify({\n  menu: menu,\n  options: ['precios', 'catalogo', 'ventas', 'perfil']\n});"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -784,
+        480
+      ],
+      "id": "eee0bd6e-6f40-489c-b94f-23027332f05d",
+      "name": "show_supplier_menu"
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.output || $json.text || $json.message }}",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        48
+      ],
+      "id": "bbb44a0b-2f4e-4403-94de-5ed055f4e484",
+      "name": "Respond to Chat"
+    },
+    {
+      "parameters": {
+        "jsCode": "// nodo para extraer datos de usuario"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2000,
+        48
+      ],
+      "id": "bdc89e01-6c36-45d1-b7d6-7bbbaa375940",
+      "name": "Extraer datos de usuario"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message Data": {
+      "main": [
+        [
+          {
+            "node": "Extraer datos de usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Customer or Supplier?": {
+      "main": [
+        [
+          {
+            "node": "Supplier Journey Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customer Journey Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Customer": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "onboarding_restaurant": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "setup_buying_preferences": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "search_products_vector": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "build_shopping_cart": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "execute_checkout": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "show_customer_menu": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supplier Journey Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Supplier": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Supplier Journey Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory Supplier": {
+      "ai_memory": [
+        [
+          {
+            "node": "Supplier Journey Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "onboarding_supplier": {
+      "ai_tool": [
+        [
+          {
+            "node": "Supplier Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upload_supplier_prices": {
+      "ai_tool": [
+        [
+          {
+            "node": "Supplier Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "normalize_product_list": {
+      "ai_tool": [
+        [
+          {
+            "node": "Supplier Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "publish_to_catalog": {
+      "ai_tool": [
+        [
+          {
+            "node": "Supplier Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "show_supplier_menu": {
+      "ai_tool": [
+        [
+          {
+            "node": "Supplier Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer datos de usuario": {
+      "main": [
+        [
+          {
+            "node": "Route: Customer or Supplier?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "114f121f-062c-4c2d-a745-c5572baa7651",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "49b8809ac9c6d78ac189292d079f6fecdaf436806e595e6107033a10240b1fea"
+  },
+  "id": "0XGcqs814kreU1qX",
+  "tags": [
+    {
+      "createdAt": "2025-11-14T12:50:02.274Z",
+      "updatedAt": "2025-11-14T12:50:02.274Z",
+      "id": "itpUXkWcLD9bBkpA",
+      "name": "frepi-v2"
+    }
+  ]
+}

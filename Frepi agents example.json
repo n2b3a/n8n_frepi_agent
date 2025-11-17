@@ -1,0 +1,513 @@
+{
+  "name": "Frepi BOT v1",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -224,
+        400
+      ],
+      "id": "b9478809-69b7-443d-9730-53744df89113",
+      "name": "When chat message received",
+      "webhookId": "31bc5263-03e5-437b-b552-fea1c8ab7bf3"
+    },
+    {
+      "parameters": {
+        "description": "This tool is to be used when the customer passes a list of products that he wants to buy, and those lists of products must be identified or related to an existing product in the product master list. ",
+        "workflowId": {
+          "__rl": true,
+          "value": "5vdZRpBUC9VD5VKw",
+          "mode": "list",
+          "cachedResultName": "Frepi BOT subflow"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        976,
+        352
+      ],
+      "id": "463c26ed-f0e9-4548-8f9f-d86bb356f658",
+      "name": "Identify products to master list"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        352
+      ],
+      "id": "eccf8c24-ce23-48cd-9bc8-ca9ed8d4b241",
+      "name": "Master list Modifier BOT"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1168,
+        352
+      ],
+      "id": "63b30aab-d12a-476e-b6b9-c81635c4c740",
+      "name": "Buying algotrithm"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "aeac2255-7005-463e-be28-0261e4a86f8b",
+              "leftValue": "={{ $json.chatInput }}",
+              "rightValue": "Sou restaurante",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -16,
+        400
+      ],
+      "id": "a0065324-d1b5-46d6-83fc-5ad0181d63d8",
+      "name": "If is restaurant or supplier"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "g6qZqv1GFPtQnUOU",
+          "mode": "list",
+          "cachedResultName": "Frepi supplier quotation Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        608,
+        816
+      ],
+      "id": "86a7b2c5-9af2-416f-81c3-c674dea0adeb",
+      "name": "Call n8n Workflow Tool"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        768,
+        816
+      ],
+      "id": "aad7e976-df64-47ef-8084-0af258d06b4f",
+      "name": "Supplier quotation list modifier BOT"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "9e418680-19e3-4341-b63d-6f117c6195ca",
+      "name": "Customer side Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        592
+      ],
+      "id": "7c2b7594-9ba2-44ae-8ba9-d9d99ddf975f",
+      "name": "Supplier side Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        352
+      ],
+      "id": "51e3c306-5688-4f4b-93fb-7e5bd67b2849",
+      "name": "Supplier modifier BOT"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        576,
+        368
+      ],
+      "id": "a5984b16-cd7f-4c20-83e5-645c9acd17f3",
+      "name": "Buying Preference Modifier Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        1056,
+        816
+      ],
+      "id": "7341ca70-40fe-4506-8a71-6aa0b223903e",
+      "name": "Purchase order executor Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        752,
+        1824
+      ],
+      "id": "6642acd6-be7a-4d72-80e6-b1f3ace977e9",
+      "name": "Purchase order Followup Agent"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        1808
+      ],
+      "id": "ef4713a5-0aaf-4c27-8bdb-a99ae2b0d9ff",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "getAll"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        1808
+      ],
+      "id": "6f1775dd-6f8d-41af-a10c-f9c7797d9317",
+      "name": "Get many rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "1EhgUCgXf7lFeiFp",
+          "name": "Ernesto AI BOT Demo project"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c82dd546-c6be-4358-95bc-a91414f722a3",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        1808
+      ],
+      "id": "04aa38e0-a9d6-41e0-b2fd-953182d20376",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        1808
+      ],
+      "id": "c18bfebf-7568-4a18-bb7f-a442d2535ceb",
+      "name": "Respond to Chat"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        288,
+        208
+      ],
+      "id": "cc609364-9064-4167-b5f7-fad6637ed3d2",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "MdAepMtuPO5nFVI0",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "If is restaurant or supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identify products to master list": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer side Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Master list Modifier BOT": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer side Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buying algotrithm": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer side Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If is restaurant or supplier": {
+      "main": [
+        [
+          {
+            "node": "Customer side Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Supplier side Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call n8n Workflow Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Supplier side Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supplier quotation list modifier BOT": {
+      "ai_tool": [
+        [
+          {
+            "node": "Supplier side Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supplier modifier BOT": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer side Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buying Preference Modifier Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer side Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purchase order executor Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Supplier side Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Purchase order Followup Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purchase order Followup Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Customer side Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "30e5ff0d-6446-4740-9af5-c5572fd28844",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "49b8809ac9c6d78ac189292d079f6fecdaf436806e595e6107033a10240b1fea"
+  },
+  "id": "2GwRfMQcNmeCKIZI",
+  "tags": []
+}
