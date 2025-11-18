@@ -39,26 +39,10 @@
     },
     {
       "parameters": {
-        "operation": "getAll",
-        "tableId": "restaurant_people",
-        "returnAll": true,
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "whatsapp_number",
-              "condition": "eq",
-              "keyValue": "={{ $json.phone_number }}"
-            },
-            {
-              "keyName": "is_active",
-              "condition": "eq",
-              "keyValue": "true"
-            }
-          ]
-        }
+        "jsCode": "// ===== BUSCAR USUARIO EN DB - BÚSQUEDA COMPLETA =====\nconst messageData = $('Extract Message Data').first().json;\nconst phoneNumber = messageData.phone_number;\n\nconsole.log('🔍 Looking for user:', phoneNumber);\n\nlet results = {\n  found: false,\n  user_type: null,\n  restaurant: null,\n  supplier: null,\n  person: null\n};\n\ntry {\n  // Search in restaurant_people\n  const { data: restaurantPeople } = await $supabase\n    .from('restaurant_people')\n    .select('*, restaurant:restaurants(*)')\n    .eq('whatsapp_number', phoneNumber)\n    .eq('is_active', true)\n    .limit(1);\n\n  if (restaurantPeople && restaurantPeople.length > 0) {\n    console.log('✅ Found as restaurant');\n    results.found = true;\n    results.user_type = 'restaurant';\n    results.person = restaurantPeople[0];\n    results.restaurant = restaurantPeople[0].restaurant;\n  }\n\n  // If not found, search in suppliers\n  if (!results.found) {\n    const { data: suppliers } = await $supabase\n      .from('suppliers')\n      .select('*')\n      .eq('phone_number', phoneNumber)\n      .eq('is_active', true)\n      .limit(1);\n\n    if (suppliers && suppliers.length > 0) {\n      console.log('✅ Found as supplier');\n      results.found = true;\n      results.user_type = 'supplier';\n      results.supplier = suppliers[0];\n    }\n  }\n\n  if (!results.found) {\n    console.log('🆕 New user detected');\n  }\n\n  return [{ json: results }];\n\n} catch (error) {\n  console.error('❌ Error:', error);\n  return [{ json: { found: false, error: error.message } }];\n}"
       },
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         -2112,
         1200
@@ -75,7 +59,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ===== PREPARE USER CONTEXT WITH SESSION CHECK =====\nconst userData = $('Buscar Usuario en DB').all();\nconst messageData = $('Extract Message Data').first().json;\n\nlet userContext = {\n  ...messageData,\n  is_new_user: userData.length === 0\n};\n\nif (userData.length > 0) {\n  const user = userData[0].json;\n  userContext.user_data = user;\n  userContext.restaurant_id = user.restaurant_id;\n  userContext.person_id = user.id;\n  userContext.user_name = user.first_name || messageData.user_name;\n  \n  // Check for active session using line_sessions\n  try {\n    const { data: activeSessions } = await $supabase\n      .from('line_sessions')\n      .select('*')\n      .eq('person_id', user.id)\n      .eq('awaiting_continuation', true)\n      .order('last_activity_at', { ascending: false })\n      .limit(1);\n    \n    if (activeSessions && activeSessions.length > 0) {\n      userContext.active_session = activeSessions[0];\n      userContext.has_active_session = true;\n    }\n  } catch (error) {\n    console.error('Error checking active sessions:', error);\n  }\n}\n\nconsole.log('👤 User context:', userContext.is_new_user ? 'NEW USER' : 'EXISTING USER');\nif (userContext.has_active_session) {\n  console.log('🔄 Active session found:', userContext.active_session.session_id);\n}\n\nreturn [{ json: userContext }];"
+        "jsCode": "// ===== PREPARE USER CONTEXT - COMPLETE =====\nconst searchResults = $('Buscar Usuario en DB').first().json;\nconst messageData = $('Extract Message Data').first().json;\n\nconsole.log('📋 User found:', searchResults.found, '| Type:', searchResults.user_type);\n\nlet userContext = {\n  phone_number: messageData.phone_number,\n  user_name: messageData.user_name || 'Usuario',\n  message: messageData.message,\n  is_new_user: !searchResults.found,\n  user_type: searchResults.user_type,\n  has_active_session: false\n};\n\nif (searchResults.found && searchResults.user_type === 'restaurant') {\n  userContext.restaurant_id = searchResults.restaurant?.id;\n  userContext.person_id = searchResults.person?.id;\n  userContext.restaurant_name = searchResults.restaurant?.restaurant_name;\n  userContext.user_data = searchResults.person;\n\n  // Check session\n  try {\n    const { data: sessions } = await $supabase\n      .from('line_sessions')\n      .select('*')\n      .eq('restaurant_id', userContext.restaurant_id)\n      .eq('awaiting_continuation', true)\n      .order('last_activity_at', { ascending: false })\n      .limit(1);\n\n    if (sessions && sessions.length > 0) {\n      userContext.has_active_session = true;\n      userContext.active_session = sessions[0];\n    }\n  } catch (error) {\n    console.error('Error checking sessions:', error);\n  }\n} else if (searchResults.found && searchResults.user_type === 'supplier') {\n  userContext.supplier_id = searchResults.supplier?.id;\n  userContext.person_id = searchResults.supplier?.id;\n  userContext.supplier_name = searchResults.supplier?.company_name;\n  userContext.user_data = searchResults.supplier;\n\n  // Check session\n  try {\n    const { data: sessions } = await $supabase\n      .from('line_sessions')\n      .select('*')\n      .eq('supplier_id', userContext.supplier_id)\n      .eq('awaiting_continuation', true)\n      .order('last_activity_at', { ascending: false })\n      .limit(1);\n\n    if (sessions && sessions.length > 0) {\n      userContext.has_active_session = true;\n      userContext.active_session = sessions[0];\n    }\n  } catch (error) {\n    console.error('Error checking sessions:', error);\n  }\n}\n\nconsole.log('👤 Result:', userContext.is_new_user ? 'NEW' : 'EXISTING');\n\nreturn [{ json: userContext }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
