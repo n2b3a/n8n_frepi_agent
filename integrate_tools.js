@@ -26,6 +26,24 @@ const TOOLS = [
     nodeId: 'tool-execute-checkout',
     codeFile: 'execute_checkout_COMPLETE.js',
     description: 'Finaliza pedido criando purchase_order e purchase_order_items do carrinho. Limpa sessão ao completar. Rollback automático em caso de erro.'
+  },
+  {
+    name: 'upload_supplier_prices',
+    nodeId: 'tool-upload-prices',
+    codeFile: 'upload_supplier_prices_COMPLETE.js',
+    description: 'Processa lista de preços do supplier com parsing flexible (|, ,, -). Valida formato, produto, preço, unidade. Guarda em line_sessions para normalização.'
+  },
+  {
+    name: 'normalize_product_list',
+    nodeId: 'tool-normalize-list',
+    codeFile: 'normalize_product_list_COMPLETE.js',
+    description: 'Normaliza produtos mapeando a master_list via vector search. Classifica por confiança, detecta produtos novos, alerta preços anômalos (>50%).'
+  },
+  {
+    name: 'publish_to_catalog',
+    nodeId: 'tool-publish-catalog',
+    codeFile: 'publish_to_catalog_COMPLETE.js',
+    description: 'Publica lista normalizada a pricing_history com verification_status=verified. Cria/atualiza supplier_mapped_products. Versionamento automático.'
   }
 ];
 
