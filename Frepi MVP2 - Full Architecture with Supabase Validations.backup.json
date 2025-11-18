@@ -39,6 +39,39 @@
     },
     {
       "parameters": {
+        "jsCode": "// ===== BUSCAR USUARIO EN DB - BÚSQUEDA COMPLETA =====\nconst messageData = $('Extract Message Data').first().json;\nconst phoneNumber = messageData.phone_number;\n\nconsole.log('🔍 Looking for user:', phoneNumber);\n\nlet results = {\n  found: false,\n  user_type: null,\n  restaurant: null,\n  supplier: null,\n  person: null\n};\n\ntry {\n  // Search in restaurant_people\n  const { data: restaurantPeople } = await $supabase\n    .from('restaurant_people')\n    .select('*, restaurant:restaurants(*)')\n    .eq('whatsapp_number', phoneNumber)\n    .eq('is_active', true)\n    .limit(1);\n\n  if (restaurantPeople && restaurantPeople.length > 0) {\n    console.log('✅ Found as restaurant');\n    results.found = true;\n    results.user_type = 'restaurant';\n    results.person = restaurantPeople[0];\n    results.restaurant = restaurantPeople[0].restaurant;\n  }\n\n  // If not found, search in suppliers\n  if (!results.found) {\n    const { data: suppliers } = await $supabase\n      .from('suppliers')\n      .select('*')\n      .eq('phone_number', phoneNumber)\n      .eq('is_active', true)\n      .limit(1);\n\n    if (suppliers && suppliers.length > 0) {\n      console.log('✅ Found as supplier');\n      results.found = true;\n      results.user_type = 'supplier';\n      results.supplier = suppliers[0];\n    }\n  }\n\n  if (!results.found) {\n    console.log('🆕 New user detected');\n  }\n\n  return [{ json: results }];\n\n} catch (error) {\n  console.error('❌ Error:', error);\n  return [{ json: { found: false, error: error.message } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2112,
+        1200
+      ],
+      "id": "buscar-usuario-001",
+      "name": "Buscar Usuario en DB",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "YaSYB0r907WCaDZK",
+          "name": "Frepi Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== PREPARE USER CONTEXT - COMPLETE =====\nconst searchResults = $('Buscar Usuario en DB').first().json;\nconst messageData = $('Extract Message Data').first().json;\n\nconsole.log('📋 User found:', searchResults.found, '| Type:', searchResults.user_type);\n\nlet userContext = {\n  phone_number: messageData.phone_number,\n  user_name: messageData.user_name || 'Usuario',\n  message: messageData.message,\n  is_new_user: !searchResults.found,\n  user_type: searchResults.user_type,\n  has_active_session: false\n};\n\nif (searchResults.found && searchResults.user_type === 'restaurant') {\n  userContext.restaurant_id = searchResults.restaurant?.id;\n  userContext.person_id = searchResults.person?.id;\n  userContext.restaurant_name = searchResults.restaurant?.restaurant_name;\n  userContext.user_data = searchResults.person;\n\n  // Check session\n  try {\n    const { data: sessions } = await $supabase\n      .from('line_sessions')\n      .select('*')\n      .eq('restaurant_id', userContext.restaurant_id)\n      .eq('awaiting_continuation', true)\n      .order('last_activity_at', { ascending: false })\n      .limit(1);\n\n    if (sessions && sessions.length > 0) {\n      userContext.has_active_session = true;\n      userContext.active_session = sessions[0];\n    }\n  } catch (error) {\n    console.error('Error checking sessions:', error);\n  }\n} else if (searchResults.found && searchResults.user_type === 'supplier') {\n  userContext.supplier_id = searchResults.supplier?.id;\n  userContext.person_id = searchResults.supplier?.id;\n  userContext.supplier_name = searchResults.supplier?.company_name;\n  userContext.user_data = searchResults.supplier;\n\n  // Check session\n  try {\n    const { data: sessions } = await $supabase\n      .from('line_sessions')\n      .select('*')\n      .eq('supplier_id', userContext.supplier_id)\n      .eq('awaiting_continuation', true)\n      .order('last_activity_at', { ascending: false })\n      .limit(1);\n\n    if (sessions && sessions.length > 0) {\n      userContext.has_active_session = true;\n      userContext.active_session = sessions[0];\n    }\n  } catch (error) {\n    console.error('Error checking sessions:', error);\n  }\n}\n\nconsole.log('👤 Result:', userContext.is_new_user ? 'NEW' : 'EXISTING');\n\nreturn [{ json: userContext }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1888,
+        1200
+      ],
+      "id": "prepare-context-001",
+      "name": "Prepare User Context"
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": false,
@@ -385,6 +418,22 @@
       }
     },
     {
+      "id": "determine_user_type_1763437349934",
+      "name": "determine_user_type",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1,
+      "position": [
+        -1824,
+        928
+      ],
+      "parameters": {
+        "name": "determine_user_type",
+        "description": "Ask new users if they are a restaurant or supplier. MUST be called for ANY new user before onboarding. Returns the user type choice.",
+        "jsCode": "// ===================================================================\n// TOOL: determine_user_type\n// ===================================================================\n// PURPOSE: Ask new users if they are a restaurant or supplier\n//          This is the FIRST interaction with any new user\n// ===================================================================\n\nconst input = $input.first().json;\nconst userMessage = (input.query || input.message || '').trim().toLowerCase();\n\nconsole.log('🔀 [User Type Detection] Starting...');\nconsole.log('📝 [User Type Detection] User message:', userMessage);\n\n// Get user context from Prepare User Context node\nconst userContext = $('Prepare User Context').first().json;\n\nconsole.log('👤 [User Type Detection] User context:', {\n  is_new_user: userContext.is_new_user,\n  phone_number: userContext.phone_number\n});\n\n// ===================================================================\n// VALIDATION: Only for new users\n// ===================================================================\n\nif (!userContext.is_new_user) {\n  return JSON.stringify({\n    success: false,\n    message: \"Este tool solo se usa para usuarios nuevos. El usuario ya está registrado.\",\n    user_type: userContext.user_type\n  });\n}\n\n// ===================================================================\n// STEP 1: Check if user has answered\n// ===================================================================\n\n// Check if user has already chosen their type\nconst hasChosen = await (async () => {\n  try {\n    const { data: tempData } = await $supabase\n      .from('line_sessions')\n      .select('preferences_captured')\n      .eq('phone_number', userContext.phone_number)\n      .order('created_at', { ascending: false })\n      .limit(1);\n\n    if (tempData && tempData.length > 0) {\n      const captured = tempData[0].preferences_captured || {};\n      return captured.chosen_user_type || null;\n    }\n    return null;\n  } catch (error) {\n    console.error('❌ Error checking for existing choice:', error);\n    return null;\n  }\n})();\n\n// ===================================================================\n// STEP 2: Parse user's answer\n// ===================================================================\n\nlet chosenType = hasChosen;\n\nif (!chosenType) {\n  // Parse user's response\n  if (userMessage.includes('restaurante') ||\n      userMessage.includes('restaurant') ||\n      userMessage.includes('comprar') ||\n      userMessage.includes('compra')) {\n    chosenType = 'restaurant';\n  } else if (userMessage.includes('fornecedor') ||\n             userMessage.includes('supplier') ||\n             userMessage.includes('proveedor') ||\n             userMessage.includes('vender') ||\n             userMessage.includes('venda')) {\n    chosenType = 'supplier';\n  } else if (userMessage.match(/\\b1\\b/)) {\n    chosenType = 'restaurant';\n  } else if (userMessage.match(/\\b2\\b/)) {\n    chosenType = 'supplier';\n  }\n}\n\n// ===================================================================\n// STEP 3: If still not chosen, ask the question\n// ===================================================================\n\nif (!chosenType) {\n  console.log('❓ [User Type Detection] User has not chosen yet, asking...');\n\n  return JSON.stringify({\n    success: true,\n    needs_user_input: true,\n    message: `Olá! 👋 Bem-vindo ao Frepi!\n\nPara melhor atendê-lo, preciso saber:\n\n*Você é:*\n1️⃣ Um restaurante (quero comprar produtos)\n2️⃣ Um fornecedor (quero vender produtos)\n\nPor favor, responda com *1* ou *2*, ou escreva \"restaurante\" ou \"fornecedor\".`\n  });\n}\n\n// ===================================================================\n// STEP 4: User has chosen - store and proceed\n// ===================================================================\n\nconsole.log('✅ [User Type Detection] User chose:', chosenType);\n\n// Store the choice temporarily in line_sessions\ntry {\n  // Check if temp session exists\n  const { data: existingSession } = await $supabase\n    .from('line_sessions')\n    .select('*')\n    .eq('phone_number', userContext.phone_number)\n    .order('created_at', { ascending: false })\n    .limit(1);\n\n  if (existingSession && existingSession.length > 0) {\n    // Update existing session\n    await $supabase\n      .from('line_sessions')\n      .update({\n        preferences_captured: {\n          ...(existingSession[0].preferences_captured || {}),\n          chosen_user_type: chosenType,\n          choice_timestamp: new Date().toISOString()\n        },\n        last_activity_at: new Date().toISOString()\n      })\n      .eq('id', existingSession[0].id);\n\n    console.log('📝 [User Type Detection] Updated existing temp session');\n  } else {\n    // Create new temp session\n    await $supabase\n      .from('line_sessions')\n      .insert({\n        phone_number: userContext.phone_number,\n        session_type: 'type_detection',\n        primary_intent: 'onboarding',\n        awaiting_continuation: true,\n        preferences_captured: {\n          chosen_user_type: chosenType,\n          choice_timestamp: new Date().toISOString()\n        },\n        last_activity_at: new Date().toISOString()\n      });\n\n    console.log('📝 [User Type Detection] Created new temp session');\n  }\n\n  // Return success with next instructions\n  const nextTool = chosenType === 'restaurant' ? 'onboarding_restaurant' : 'onboarding_supplier';\n\n  return JSON.stringify({\n    success: true,\n    user_type_chosen: chosenType,\n    next_action: nextTool,\n    message: chosenType === 'restaurant'\n      ? `Perfeito! Vou iniciar seu cadastro como *restaurante*. 🍽️\\n\\nVamos começar!`\n      : `Perfeito! Vou iniciar seu cadastro como *fornecedor*. 📦\\n\\nVamos começar!`,\n    instruction_to_agent: `User has chosen ${chosenType}. IMMEDIATELY call the ${nextTool} tool to begin onboarding. Do NOT ask any other questions.`\n  });\n\n} catch (error) {\n  console.error('❌ [User Type Detection] Error saving choice:', error);\n\n  return JSON.stringify({\n    success: false,\n    error: error.message,\n    message: \"Desculpe, houve um erro ao processar sua escolha. Por favor, tente novamente.\"\n  });\n}\n",
+        "schemaType": "fromAI"
+      }
+    },
+    {
       "id": "check_user_in_database_1763503554746",
       "name": "check_user_in_database",
       "type": "@n8n/n8n-nodes-langchain.toolCode",
@@ -497,7 +546,35 @@
     },
     "Extract Message Data": {
       "main": [
-        []
+        [
+          {
+            "node": "Buscar Usuario en DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Usuario en DB": {
+      "main": [
+        [
+          {
+            "node": "Prepare User Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare User Context": {
+      "main": [
+        [
+          {
+            "node": "Route: Customer or Supplier?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Route: Customer or Supplier?": {
@@ -700,6 +777,22 @@
           {
             "node": "Supplier Journey Agent",
             "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "determine_user_type": {
+      "ai_tool": [
+        [
+          {
+            "node": "Customer Journey Agent",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Supplier Journey Agent",
+            "type": "ai_tool",
             "index": 0
           }
         ]
