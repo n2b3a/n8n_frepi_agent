@@ -32,9 +32,9 @@
 
 ---
 
-### 3. setup_buying_preferences ⭐ NUEVO
+### 3. setup_buying_preferences ⭐
 **Ubicación:** `setup_buying_preferences_COMPLETE.js`
-**Estado:** ✅ RECIÉN IMPLEMENTADO
+**Estado:** ✅ COMPLETO
 **Características:**
 - 5 pasos de captura (marcas, formatos, frecuencia, horario, restricciones)
 - Session management con timeout (30 min)
@@ -47,6 +47,26 @@
 **Próximo paso:** Integrar en el workflow JSON
 
 **Documentación:** `SETUP_BUYING_PREFERENCES_GUIDE.md`
+
+---
+
+### 4. build_shopping_cart ⭐ NUEVO
+**Ubicación:** `build_shopping_cart_COMPLETE.js`
+**Estado:** ✅ RECIÉN IMPLEMENTADO
+**Características:**
+- Parsing inteligente de selección de productos
+- Consulta de precios desde `pricing_history`
+- Guardado persistente en `line_sessions.preferences_captured.cart`
+- Cálculo dinámico de totales (subtotal, tax, delivery_fee, total)
+- Actualización de cantidades si producto ya está en carrito
+- Comandos: confirmar, limpar, ver carrinho
+- Session management con timeout (30 min)
+- Validación de productos activos y precios disponibles
+- Logging completo
+
+**Próximo paso:** Integrar en el workflow JSON
+
+**Documentación:** `BUILD_SHOPPING_CART_GUIDE.md`
 
 ---
 
@@ -101,20 +121,7 @@
 
 ## ❌ Tools EN MOCK (No Implementados)
 
-### 6. build_shopping_cart
-**Estado:** ❌ MOCK
-**Lo que hace ahora:** Retorna estructura hardcoded
-**Lo que necesita:**
-- Guardar cart en `line_sessions.preferences_captured`
-- Consultar precios de `pricing_history`
-- Calcular totales reales
-- Validar disponibilidad
-
-**Prioridad:** 🔴 ALTA
-
----
-
-### 7. upload_supplier_prices
+### 6. upload_supplier_prices
 **Estado:** ❌ MOCK
 **Lo que hace ahora:** Retorna formato esperado
 **Lo que necesita:**
@@ -171,7 +178,7 @@
 
 ### 🔴 PRIORIDAD ALTA (Funcionalidad Core)
 
-1. **build_shopping_cart** - Necesario para flujo de compra
+1. ✅ **build_shopping_cart** - COMPLETO
 2. **execute_checkout (completar)** - Guardar items de la orden
 
 ### 🟡 PRIORIDAD MEDIA (UX + Supplier Flow)
@@ -193,7 +200,7 @@
 ## 🎯 Roadmap Sugerido
 
 ### Semana 1: Completar Flujo de Compra
-- [ ] Implementar `build_shopping_cart` completo
+- [x] Implementar `build_shopping_cart` completo ✅ HECHO
 - [ ] Completar `execute_checkout` con items
 - [ ] Testing end-to-end del flujo de compra
 
@@ -227,13 +234,15 @@
 - ✅ `SUPABASE_STRUCTURE_COMPLETE.md` - Estructura de DB
 - ✅ `ONBOARDING_IMPLEMENTATION_GUIDE.md` - Guía de onboarding
 - ✅ `README_ONBOARDING.md` - Quick start onboarding
-- ✅ `SETUP_BUYING_PREFERENCES_GUIDE.md` - Guía de preferencias ⭐ NUEVO
+- ✅ `SETUP_BUYING_PREFERENCES_GUIDE.md` - Guía de preferencias
+- ✅ `BUILD_SHOPPING_CART_GUIDE.md` - Guía de carrito ⭐ NUEVO
 - ✅ `COMPARISON_ANALYSIS.md` - Análisis comparativo
 - ✅ `UNIFICATION_PLAN.md` - Plan de unificación
-- ✅ `IMPLEMENTATION_STATUS.md` - Este archivo ⭐ NUEVO
+- ✅ `IMPLEMENTATION_STATUS.md` - Este archivo
 
 ### Código de Implementación
-- ✅ `setup_buying_preferences_COMPLETE.js` - Preferencias completo ⭐ NUEVO
+- ✅ `setup_buying_preferences_COMPLETE.js` - Preferencias completo
+- ✅ `build_shopping_cart_COMPLETE.js` - Carrito completo ⭐ NUEVO
 
 ### Data
 - ✅ `Data supabase.md` - Datos de Supabase
@@ -247,26 +256,27 @@
    - Reemplazar código del tool
    - Testing
 
-2. **Implementar build_shopping_cart**
-   - Crear archivo `build_shopping_cart_COMPLETE.js`
-   - Consultar pricing_history
-   - Guardar en sesión
+2. **Integrar build_shopping_cart en workflow**
+   - Abrir workflow JSON
+   - Reemplazar código del tool
+   - Testing
 
 3. **Completar execute_checkout**
    - Agregar insert de order_items
    - Validar stock
+   - Leer cart de sesión
 
 ---
 
 ## 📈 Métricas de Progreso
 
-**Tools Implementados:** 3/11 (27%)
-**Tools Prioritarios (Alta):** 0/2 (0%)
-**Tools Core (Alta + Media):** 3/8 (37%)
+**Tools Implementados:** 4/11 (36%)
+**Tools Prioritarios (Alta):** 1/2 (50%)
+**Tools Core (Alta + Media):** 4/8 (50%)
 
-**Estado General:** 🟡 EN PROGRESO
+**Estado General:** 🟢 AVANCE SIGNIFICATIVO
 
 ---
 
 Última actualización: 2025-11-18
-Versión: 1.0
+Versión: 1.1
