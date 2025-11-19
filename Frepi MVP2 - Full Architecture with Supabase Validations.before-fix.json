@@ -39,6 +39,39 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "supplier-check-001",
+              "leftValue": "={{ $json.message.toLowerCase() }}",
+              "rightValue": "fornecedor|proveedor|vender|supplier|lista de preço|lista de precio|distribuidor|sou fornecedor",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1664,
+        1200
+      ],
+      "id": "route-customer-supplier-001",
+      "name": "Route: Customer or Supplier?"
+    },
+    {
+      "parameters": {
         "promptType": "define",
         "text": "={{ $json.message }}",
         "options": {
@@ -455,7 +488,7 @@
       "main": [
         [
           {
-            "node": "Extract Message Data",
+            "node": "Registration Agent",
             "type": "main",
             "index": 0
           }
@@ -464,9 +497,21 @@
     },
     "Extract Message Data": {
       "main": [
+        []
+      ]
+    },
+    "Route: Customer or Supplier?": {
+      "main": [
         [
           {
-            "node": "Registration Agent",
+            "node": "Supplier Journey Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Customer Journey Agent",
             "type": "main",
             "index": 0
           }
